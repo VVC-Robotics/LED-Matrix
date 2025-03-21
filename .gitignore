@@ -1,3 +1,7 @@
 *.hex
 .vscode
 *.blend1
+*.out
+callgrind*
+*.o
+build
