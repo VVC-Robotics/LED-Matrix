@@ -107,7 +107,7 @@ inline void rgb_write(volatile byte r, volatile byte g, volatile byte b) {
 int value = 0;
 
 void loop() {
-  int range = 720;
+  int range = 2160;
   value = (value + 1) % range;
   
   float pi = 3.14159f;
@@ -120,16 +120,16 @@ void loop() {
   float r180 = r30 * 6;
   float r240 = r30 * 8;
   
-  float range2 = 64.0f;
+  float range2 = 127.5f;
   float offset = range2;
   
   int color    = sin(bf)        * range2 + offset;
   int color60  = sin(bf + r60)  * range2 + offset;
   int color90  = sin(bf + r90)  * range2 + offset;
-  int color120 = sin(bf + r120) * range2 + offset;
+  int color120 = sin(bf * 2.0f + r120) * range2 + offset;
   int color180 = sin(bf + r180) * range2 + offset;
-  int color240 = sin(bf + r240) * range2 + offset;
-  byte d = 4;
+  int color240 = sin(bf * 4.0f + r240) * range2 + offset;
+  byte d = 8;
   
   volatile byte zero = 0;
   led_write(color, color120, color240);
