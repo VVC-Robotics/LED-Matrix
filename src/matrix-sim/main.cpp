@@ -6,20 +6,30 @@
 #include "shader.h"
 #include "ui_element.h"
 #include "frametime.h"
+#include "mesh.h"
+#include "camera.h"
 
 struct ProgramBase {
+    ProgramBase(std::string title = "", int width = 800, int height = 800)
+        :title(title),
+         width(width),
+         height(height) { }
+
     std::vector<texture_t*> textures;
     std::vector<shader_t*> shaders;
     std::vector<shader_program_t*> programs;
+    std::vector<mesh_t*> meshes;
     ui_element_t ui_base;
     gui::frametime_t frametime;
     GLFWwindow *window;
+    int width, height;
+    std::string title;
 
     virtual int init_context() {
         if (!glfwInit())
             handle_error("Failed to init glfw");
         
-        window = glfwCreateWindow(800, 800, "ProgramBase", 0, 0);
+        window = glfwCreateWindow(width, height, title.c_str(), 0, 0);
 
         if (!window)
             handle_error("Failed to create glfw window");
@@ -43,6 +53,9 @@ struct ProgramBase {
         signal(SIGINT, [](int sig) {
             current->on_signal(sig);
         });
+
+        glfwGetWindowSize(window, &width, &height);
+        framebuffersize_callback(window, width, height);
 
         return glsuccess;
     }
@@ -85,6 +98,11 @@ struct ProgramBase {
     }
 
     virtual int onFramebuffer(int width, int height) {
+        current_window[2] = width; //change how this works
+        current_window[3] = height;
+
+        glViewport(0,0,width,height);
+
         ui_base.onFramebuffer(width, height);
 
         return glsuccess;
@@ -161,11 +179,81 @@ struct ProgramBase {
 };
 
 struct MatrixSim : public ProgramBase {
+    MatrixSim(const ProgramBase &base):ProgramBase(base){}
+    MatrixSim(){}
 
+    camera_t *camera;
+
+    shader_t *vertex_shader;
+    shader_t *fragment_shader;
+    shader_program_t *object_shader;
+
+    mesh_t *led_object;
+
+    int init() override {
+        vertex_shader = new shader_t(GL_VERTEX_SHADER);
+        fragment_shader = new shader_t(GL_FRAGMENT_SHADER);
+        object_shader = new shader_program_t(vertex_shader, fragment_shader);
+
+        led_object = new mesh_t;
+        camera = new camera_t;
+
+        return glsuccess;
+    }
+
+    int load() override {
+        return
+
+            vertex_shader->load("assets/shaders/vertex.glsl")
+        ||  fragment_shader->load("assets/shaders/fragment.glsl")
+        ||  object_shader->load()
+
+        ||  led_object->loadObj("assets/models/LED.obj");
+    }
+
+    int onRender(double dt) override {
+        object_shader->use();
+        object_shader->set_camera(camera, glm::mat4(1.0f));
+
+        object_shader->set_v3("light.position", {20,0,0});
+        object_shader->set_v3("light.ambient", glm::vec3(-0.3f));
+        object_shader->set_v3("light.specular", glm::vec3(-0.4f));
+        object_shader->set_v3("light.diffuse", glm::vec3(1.5));
+        object_shader->set_f("material.shininess", 0.6);
+
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_ALPHA_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        led_object->render();
+
+        return glsuccess;
+    }
+
+    int onFrame(double dt) override {
+        camera->keyboard(window, dt);
+
+        return glsuccess;
+    }
+
+    int onMouse(int button, int action, int mods) override {
+        camera->mousePress(window, button, action, mods);
+
+        return glsuccess;
+    }
+
+    int onCursor(double x, double y) override {
+        camera->mouseMove(window, x, y);
+
+        return glsuccess;
+    }
 };
 
 int main() {
-    MatrixSim sim;
+    MatrixSim sim = ProgramBase("LED Matrix Simulation");
 
     if (sim.init_context() || sim.init() || sim.load())
         sim.handle_error("Failed to start program");

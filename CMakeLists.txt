@@ -14,3 +14,9 @@ add_subdirectory(${LEDMATRIX_SOURCE_DIR}/guilib)
 add_subdirectory(${LEDMATRIX_SOURCE_DIR}/matrix-sim)
 
 add_definitions(CMAKE_EXPORT_COMPILE_COMMANDS=ON)
+
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different 
+        "${CMAKE_CURRENT_SOURCE_DIR}/${LEDMATRIX_FILES}/"
+        "${CMAKE_BINARY_DIR}/assets/${LEDMATRIX_FILES}"
+)

@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(MATRIX_SIM_SOURCE_DIR .)
+set(MATRIX_SIM_FILES assets)
 
 #find_library(GUILIB_LIBRARY guilib)
 set(GUILIB_LIBRARY guilib)
@@ -26,4 +27,10 @@ target_link_libraries(${MATRIX_SIM_NAME}
 
 target_compile_options(${MATRIX_SIM_NAME} PUBLIC
     -g
+)
+
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/${MATRIX_SIM_FILES}/"
+        "${CMAKE_BINARY_DIR}/${MATRIX_SIM_FILES}"
 )
