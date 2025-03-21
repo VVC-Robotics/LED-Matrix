@@ -190,6 +190,15 @@ struct MatrixSim : public ProgramBase {
 
     mesh_t *led_object;
 
+    int init_context() override {
+        if (!glfwInit())
+            return glfail;
+
+        glfwWindowHint(GLFW_SAMPLES, 4);
+
+        return ProgramBase::init_context();
+    }
+
     int init() override {
         vertex_shader = new shader_t(GL_VERTEX_SHADER);
         fragment_shader = new shader_t(GL_FRAGMENT_SHADER);
@@ -212,10 +221,12 @@ struct MatrixSim : public ProgramBase {
     }
 
     int onRender(double dt) override {
+        glEnable(GL_MULTISAMPLE);
+
         object_shader->use();
         object_shader->set_camera(camera, glm::mat4(1.0f));
 
-        object_shader->set_v3("light.position", {20,0,0});
+        object_shader->set_v3("light.position", {0,0,20});
         object_shader->set_v3("light.ambient", glm::vec3(-0.3f));
         object_shader->set_v3("light.specular", glm::vec3(-0.4f));
         object_shader->set_v3("light.diffuse", glm::vec3(1.5));

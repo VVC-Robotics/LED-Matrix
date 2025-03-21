@@ -28,7 +28,8 @@ uniform Light light;
 uniform mat3 norm;
 
 void main() {
-    vec4 l_pos = vec4(-20,20,0,1);
+    //vec4 l_pos = vec4(-20,20,0,1);
+    vec4 l_pos = vec4(light.position,1);
 
     vec3 l_dir = normalize(l_pos.xyz - worldPos);
     vec3 v_dir = normalize(eyePos - worldPos);

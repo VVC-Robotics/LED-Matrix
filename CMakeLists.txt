@@ -15,8 +15,10 @@ add_subdirectory(${LEDMATRIX_SOURCE_DIR}/matrix-sim)
 
 add_definitions(CMAKE_EXPORT_COMPILE_COMMANDS=ON)
 
-execute_process(
-    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different 
-        "${CMAKE_CURRENT_SOURCE_DIR}/${LEDMATRIX_FILES}/"
+add_custom_target(copyall
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/${LEDMATRIX_FILES}"
         "${CMAKE_BINARY_DIR}/assets/${LEDMATRIX_FILES}"
+    COMMENT "Copying files"
+    VERBATIM
 )
