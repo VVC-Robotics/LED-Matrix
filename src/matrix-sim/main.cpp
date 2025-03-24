@@ -8,6 +8,7 @@
 #include "frametime.h"
 #include "mesh.h"
 #include "camera.h"
+#include "materials.h"
 
 struct ProgramBase {
     ProgramBase(std::string title = "", int width = 800, int height = 800)
@@ -178,38 +179,27 @@ struct ProgramBase {
     }
 };
 
-struct material_shader_t : public shader_program_t {
-    material_shader_t(const shader_program_t &base, material_t *material, light_t *light):shader_program_t(base),material(material),light(light){}
-    material_shader_t(){}
-
-    material_t *material;
-    light_t *light;
+struct MatrixShader : public MaterialShader {
+    MatrixShader(const MaterialShader &base):MaterialShader(base){}
+    MatrixShader(){}
 
     void use() override {
-        shader_program_t::use();
-
-        material->use();
-
-        set_v3("light.position", light->position);
-        set_v3("light.ambient", light->ambient);
-        set_v3("light.specular", light->specular);
-        set_v3("light.diffuse", light->diffuse);
-        set_f("material.shininess", material->shininess);
-    }
-};
-
-struct matrix_shader_t : public material_shader_t {
-    matrix_shader_t(const material_shader_t &base):material_shader_t(base){}
-    matrix_shader_t(){}
-
-    void use() override {
-        material_shader_t::use();
+        MaterialShader::use();
 
         glEnable(GL_MULTISAMPLE);
 
-        glEnable(GL_DEPTH_TEST);
+        //glEnable(GL_DEPTH_TEST);
+        glDisable(GL_DEPTH_TEST);
+        //glDepthFunc(GL_EQUAL);
+
         glEnable(GL_POLYGON_OFFSET_FILL);
-        glDisable(GL_CULL_FACE);
+        //glDepthMask(GL_TRUE);
+        glFrontFace(GL_CCW);
+        glCullFace(GL_BACK);
+        
+        glEnable(GL_CULL_FACE);
+        //glDisable(GL_CULL_FACE);
+        
         glEnable(GL_ALPHA_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -245,9 +235,9 @@ struct MatrixSim : public ProgramBase {
         dummy_texture = new texture_t();
         dummy_texture->generate({0,0.0f,0.5f,0.5f});
         //object_shader = new shader_program_t(vertex_shader, fragment_shader);
-        object_shader = new matrix_shader_t(material_shader_t(shader_program_t(vertex_shader, fragment_shader),
+        object_shader = new MatrixShader(MaterialShader(shader_program_t(vertex_shader, fragment_shader),
                         new material_t(dummy_texture, dummy_texture, 0.5f),
-                        new light_t({20.0f,0,0}, {0.2,0.2,0.2}, {0.2,0.2,0.2}, {0.2,0.2,0.2})));
+                        new light_t({20.0f,0,0}, {0.2,0.2,0.2}, {0.4,0.4,0.4}, {0.0,0.0,0.0})));
 
         led_object = new mesh_t;
         camera = new camera_t;
@@ -268,19 +258,45 @@ struct MatrixSim : public ProgramBase {
     int onRender(double dt) override {
         object_shader->use();
         object_shader->set_camera(camera);
+        //object_shader->set_v3("light.diffuse", glm::vec3(0));
 
-        const int matrix_size = 16;
+        auto model_scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.05f));
+
+        const int matrix_size = 8;
+
+        auto &camera_position = camera->position;
+
+        std::vector<glm::vec3> positions;
+        int renderCount = 0;
+        //positions.assign(matrix_size * matrix_size * matrix_size, glm::vec3(0.0f)); 
         for (int x = 0; x < matrix_size; x++) {
             for (int y = 0; y < matrix_size; y++) {
                 for (int z = 0; z < matrix_size; z++) {
-                    glm::mat4 matrix(1.0f);
-                    matrix = glm::translate(matrix, glm::vec3(x, y, z));
-                    matrix = glm::scale(matrix, glm::vec3(0.05f));
-                    object_shader->set_m4("model", matrix);
-                    led_object->render();
+                    auto position = glm::vec3(x,y,z);
+                    auto direction = glm::normalize(position - camera_position);
+                    auto in_view = glm::dot(direction, camera->front);
+                    
+                    if (in_view < 0)
+                        continue;
+        
+                    renderCount++;
+        
+                    positions.push_back({x,y,z});
                 }
             }
         }
+
+        std::sort(positions.begin(), positions.end(), [camera_position](const auto &a, const auto &b) {
+            return glm::distance(a, camera_position) > glm::distance(b, camera_position);
+        });
+
+        for (auto &pos : positions) {
+            auto model = glm::translate(glm::mat4(1.0f), pos);
+            object_shader->set_m4("model", model * model_scale);
+            led_object->render();
+        }
+
+        fprintf(stderr, "%i models\n", renderCount);
 
         return glsuccess;
     }
