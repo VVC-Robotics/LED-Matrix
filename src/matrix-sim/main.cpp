@@ -71,8 +71,7 @@ struct ProgramBase {
 
     virtual int run() {
         while (!glfwWindowShouldClose(window)) {
-            glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            this->onClear();
 
             frametime.update();
             auto delta_time = frametime.get_delta_time<double>();
@@ -87,6 +86,13 @@ struct ProgramBase {
             glfwPollEvents();
         }
 
+        return glsuccess;
+    }
+
+    virtual int onClear() {
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
         return glsuccess;
     }
 
@@ -233,11 +239,11 @@ struct MatrixSim : public ProgramBase {
         vertex_shader = new shader_t(GL_VERTEX_SHADER);
         fragment_shader = new shader_t(GL_FRAGMENT_SHADER);
         dummy_texture = new texture_t();
-        dummy_texture->generate({0,0.0f,0.5f,0.5f});
+        dummy_texture->generate({1.0f,1.0f,1.0f,0.5f});
         //object_shader = new shader_program_t(vertex_shader, fragment_shader);
         object_shader = new MatrixShader(MaterialShader(shader_program_t(vertex_shader, fragment_shader),
                         new material_t(dummy_texture, dummy_texture, 0.5f),
-                        new light_t({20.0f,0,0}, {0.2,0.2,0.2}, {0.4,0.4,0.4}, {0.0,0.0,0.0})));
+                        new light_t({0.0f,0,0}, {0.5,0.5,0.5}, {0.0,0.0,0.0}, {0.0,0.0,0.0})));
 
         led_object = new mesh_t;
         camera = new camera_t;
@@ -252,7 +258,7 @@ struct MatrixSim : public ProgramBase {
         ||  fragment_shader->load("assets/shaders/fragment.glsl")
         ||  object_shader->load()
 
-        ||  led_object->loadObj("assets/models/LED.obj");
+        ||  led_object->loadObj("assets/models/LED_bulb.obj");
     }
 
     int onRender(double dt) override {
@@ -296,8 +302,14 @@ struct MatrixSim : public ProgramBase {
             led_object->render();
         }
 
-        fprintf(stderr, "%i models\n", renderCount);
+        //fprintf(stderr, "%i models\n", renderCount);
 
+        return glsuccess;
+    }
+
+    int onClear() override {
+        glClearColor(0.5,0.5,0.5,1);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         return glsuccess;
     }
 
