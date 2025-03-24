@@ -178,6 +178,45 @@ struct ProgramBase {
     }
 };
 
+struct material_shader_t : public shader_program_t {
+    material_shader_t(const shader_program_t &base, material_t *material, light_t *light):shader_program_t(base),material(material),light(light){}
+    material_shader_t(){}
+
+    material_t *material;
+    light_t *light;
+
+    void use() override {
+        shader_program_t::use();
+
+        material->use();
+
+        set_v3("light.position", light->position);
+        set_v3("light.ambient", light->ambient);
+        set_v3("light.specular", light->specular);
+        set_v3("light.diffuse", light->diffuse);
+        set_f("material.shininess", material->shininess);
+    }
+};
+
+struct matrix_shader_t : public material_shader_t {
+    matrix_shader_t(const material_shader_t &base):material_shader_t(base){}
+    matrix_shader_t(){}
+
+    void use() override {
+        material_shader_t::use();
+
+        glEnable(GL_MULTISAMPLE);
+
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_ALPHA_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    }
+};
+
 struct MatrixSim : public ProgramBase {
     MatrixSim(const ProgramBase &base):ProgramBase(base){}
     MatrixSim(){}
@@ -187,6 +226,7 @@ struct MatrixSim : public ProgramBase {
     shader_t *vertex_shader;
     shader_t *fragment_shader;
     shader_program_t *object_shader;
+    texture_t *dummy_texture;
 
     mesh_t *led_object;
 
@@ -202,7 +242,12 @@ struct MatrixSim : public ProgramBase {
     int init() override {
         vertex_shader = new shader_t(GL_VERTEX_SHADER);
         fragment_shader = new shader_t(GL_FRAGMENT_SHADER);
-        object_shader = new shader_program_t(vertex_shader, fragment_shader);
+        dummy_texture = new texture_t();
+        dummy_texture->generate({0,0.0f,0.5f,0.5f});
+        //object_shader = new shader_program_t(vertex_shader, fragment_shader);
+        object_shader = new matrix_shader_t(material_shader_t(shader_program_t(vertex_shader, fragment_shader),
+                        new material_t(dummy_texture, dummy_texture, 0.5f),
+                        new light_t({20.0f,0,0}, {0.2,0.2,0.2}, {0.2,0.2,0.2}, {0.2,0.2,0.2})));
 
         led_object = new mesh_t;
         camera = new camera_t;
@@ -221,25 +266,21 @@ struct MatrixSim : public ProgramBase {
     }
 
     int onRender(double dt) override {
-        glEnable(GL_MULTISAMPLE);
-
         object_shader->use();
-        object_shader->set_camera(camera, glm::mat4(1.0f));
+        object_shader->set_camera(camera);
 
-        object_shader->set_v3("light.position", {0,0,20});
-        object_shader->set_v3("light.ambient", glm::vec3(-0.3f));
-        object_shader->set_v3("light.specular", glm::vec3(-0.4f));
-        object_shader->set_v3("light.diffuse", glm::vec3(1.5));
-        object_shader->set_f("material.shininess", 0.6);
-
-        glEnable(GL_DEPTH_TEST);
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glDisable(GL_CULL_FACE);
-        glEnable(GL_ALPHA_TEST);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        led_object->render();
+        const int matrix_size = 16;
+        for (int x = 0; x < matrix_size; x++) {
+            for (int y = 0; y < matrix_size; y++) {
+                for (int z = 0; z < matrix_size; z++) {
+                    glm::mat4 matrix(1.0f);
+                    matrix = glm::translate(matrix, glm::vec3(x, y, z));
+                    matrix = glm::scale(matrix, glm::vec3(0.05f));
+                    object_shader->set_m4("model", matrix);
+                    led_object->render();
+                }
+            }
+        }
 
         return glsuccess;
     }
