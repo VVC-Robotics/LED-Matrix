@@ -9,6 +9,9 @@
 #include "mesh.h"
 #include "camera.h"
 #include "materials.h"
+#include "ui_shader.h"
+#include "ui_slider.h"
+#include "util.h"
 
 struct ProgramBase {
     ProgramBase(std::string title = "", int width = 800, int height = 800)
@@ -56,17 +59,17 @@ struct ProgramBase {
         });
 
         glfwGetWindowSize(window, &width, &height);
-        framebuffersize_callback(window, width, height);
+        ProgramBase::onFramebuffer(width, height);
 
         return glsuccess;
     }
 
     virtual int init() {
-        return glsuccess;
+        return onFramebuffer(width, height);
     }
 
     virtual int load() {
-        return glsuccess;
+        return ui_base.load();
     }
 
     virtual int run() {
@@ -97,7 +100,7 @@ struct ProgramBase {
     }
 
     virtual int onRender(double delta_time) {
-        return glsuccess;
+        return ui_base.render();
     }
 
     virtual int onFrame(double delta_time) {
@@ -107,33 +110,27 @@ struct ProgramBase {
     virtual int onFramebuffer(int width, int height) {
         current_window[2] = width; //change how this works
         current_window[3] = height;
+        this->width = width;
+        this->height = height;
 
         glViewport(0,0,width,height);
 
-        ui_base.onFramebuffer(width, height);
-
-        return glsuccess;
+        return ui_base.onFramebuffer(width, height);
     }
 
     virtual int onCursor(double x, double y) {
-        ui_base.onCursor(x, y);
-
-        return glsuccess;
+        return ui_base.onCursor(x, y);
     }
 
     virtual int onMouse(int button, int action, int mods) {
-        ui_base.onMouse(button, action, mods);
-
-        return glsuccess;
+        return ui_base.onMouse(button, action, mods);
     }
 
     virtual int onKeyboard(double delta_time) {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
             hint_exit();
 
-        ui_base.onKeyboard(delta_time);
-
-        return glsuccess;
+        return ui_base.onKeyboard(delta_time);
     }
 
     virtual void on_signal(int signal) {
@@ -223,8 +220,43 @@ struct MatrixSim : public ProgramBase {
     shader_t *fragment_shader;
     shader_program_t *object_shader;
     texture_t *dummy_texture;
+    texture_t *text_texture;
+    gui::UIShader *ui_shader;
+    ui_text_t *ui_debug;
 
     mesh_t *led_object;
+
+    void get_debug_info() {
+        const auto vtos = [](const glm::vec4 &vec) {
+            return std::format("{:>6.2f} {:>6.2f} {:>6.2f} {:>6.2f}\n", vec.x, vec.y, vec.z, vec.w);
+        };
+
+        const auto vtos2 = [](const glm::vec2 &vec) {
+            return std::format("{:>6.2f} {:>6.2f}\n", vec.x, vec.y);
+        };
+
+        const auto mtos = [vtos](const glm::mat4 &matrix) {
+            return vtos(matrix[0]) + vtos(matrix[1]) + vtos(matrix[2]) + vtos(matrix[3]);
+        };
+
+        auto mat = ui_shader->projection;
+        auto screen = glm::vec2(width, height);
+        auto scale = glm::normalize(screen);
+        auto eq = 1.0f/sqrtf(2.0f);
+        auto inv = eq/scale;
+        
+        std::string info;
+
+        info += std::format("FPS: {:>6.2f} ft: {:>6.2f} ms\n", frametime.get_fps(), frametime.get_ms());
+        info += std::format("value: {}\nHELLO\n", ui_shader->mixFactor);
+        info += "Projection:\n" + mtos(mat);
+        info += std::format("Screen: {}", vtos2(screen));
+        info += std::format("Scale : {}", vtos2(scale));
+        info += std::format("Invert: {}", vtos2(inv));
+        info += std::format("Ratio : {:>6.2f}\n", mat[1][1] / mat[3][1]);
+
+        ui_debug->set_string(info);
+    }
 
     int init_context() override {
         if (!glfwInit())
@@ -238,15 +270,23 @@ struct MatrixSim : public ProgramBase {
     int init() override {
         vertex_shader = new shader_t(GL_VERTEX_SHADER);
         fragment_shader = new shader_t(GL_FRAGMENT_SHADER);
+        text_texture = new texture_t;
         dummy_texture = new texture_t();
         dummy_texture->generate({1.0f,1.0f,1.0f,0.5f});
         //object_shader = new shader_program_t(vertex_shader, fragment_shader);
         object_shader = new MatrixShader(MaterialShader(shader_program_t(vertex_shader, fragment_shader),
                         new material_t(dummy_texture, dummy_texture, 0.5f),
                         new light_t({0.0f,0,0}, {0.5,0.5,0.5}, {0.0,0.0,0.0}, {0.0,0.0,0.0})));
+        ui_shader = new gui::UIShader(new gui::VertexShader("assets/shaders/text_vertex.glsl"), new gui::FragmentShader("assets/shaders/text_fragment.glsl"));
+        ui_base.add_child(new gui::UISliderSocketable(
+                        ui_slider_t(window, ui_shader, text_texture, glm::vec4{0.45, -0.95, 0.5, 0.1}, -1.0f, 1.0f, 0.0f, "mixFactor", true),
+                        gui::UISliderSocketPtr<>(&(ui_shader->mixFactor))));
+        ui_debug = ui_base.add_child(new ui_text_t(window, ui_shader, text_texture, {-1.0f,-1.0f,1.0f,1.0f}, "", std::bind(&MatrixSim::get_debug_info, this)));
 
         led_object = new mesh_t;
         camera = new camera_t;
+
+        ProgramBase::init();
 
         return glsuccess;
     }
@@ -257,7 +297,9 @@ struct MatrixSim : public ProgramBase {
             vertex_shader->load("assets/shaders/vertex.glsl")
         ||  fragment_shader->load("assets/shaders/fragment.glsl")
         ||  object_shader->load()
-
+        ||  ui_shader->load()
+        ||  text_texture->load("assets/textures/text.png")
+        ||  ui_base.load()
         ||  led_object->loadObj("assets/models/LED_bulb.obj");
     }
 
@@ -302,6 +344,7 @@ struct MatrixSim : public ProgramBase {
             led_object->render();
         }
 
+        ui_base.render();
         //fprintf(stderr, "%i models\n", renderCount);
 
         return glsuccess;
@@ -313,22 +356,42 @@ struct MatrixSim : public ProgramBase {
         return glsuccess;
     }
 
-    int onFrame(double dt) override {
+    int onKeyboard(double dt) override {
+        if (ProgramBase::onKeyboard(dt))
+            return glsuccess;
+
         camera->keyboard(window, dt);
 
         return glsuccess;
     }
 
     int onMouse(int button, int action, int mods) override {
+        if (ProgramBase::onMouse(button, action, mods))
+            return glsuccess;
+
         camera->mousePress(window, button, action, mods);
 
         return glsuccess;
     }
 
     int onCursor(double x, double y) override {
+        auto transform = util::project_screen(x, y, ui_shader->get_projection());
+
+        if (ProgramBase::onCursor(transform.x, transform.y))
+            return glsuccess;
+
         camera->mouseMove(window, x, y);
 
         return glsuccess;
+    }
+
+    int onFramebuffer(int width, int height) override {
+        auto &proj = ui_shader->projection; 
+        auto aspect = float(width) / height;
+
+        ui_shader->set_buffer_size(width, height);
+
+        return ProgramBase::onFramebuffer(width, height);
     }
 };
 
