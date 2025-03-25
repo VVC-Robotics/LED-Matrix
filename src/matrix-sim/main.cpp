@@ -108,8 +108,6 @@ struct ProgramBase {
     }
 
     virtual int onFramebuffer(int width, int height) {
-        current_window[2] = width; //change how this works
-        current_window[3] = height;
         this->width = width;
         this->height = height;
 
@@ -390,6 +388,8 @@ struct MatrixSim : public ProgramBase {
         auto aspect = float(width) / height;
 
         ui_shader->set_buffer_size(width, height);
+
+        camera->onFramebuffer(window, width, height);
 
         return ProgramBase::onFramebuffer(width, height);
     }
